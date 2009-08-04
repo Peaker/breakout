@@ -3,59 +3,93 @@
 
 module Main where
     import qualified Graphics.UI.HaskGame as HaskGame
-    import qualified Graphics.UI.HaskGame.Font as Font
     import qualified Graphics.UI.HaskGame.Vector2 as Vector2
     import Graphics.UI.HaskGame.Vector2(Vector2(..))
     import Graphics.UI.HaskGame.Color(Color(..))
     import qualified Graphics.UI.SDL as SDL
+    import Graphics.UI.SDL(Rect(..))
     import qualified IO
-    import qualified System
-    import qualified Control.Monad as Monad
     import qualified Control.Exception as Exception
     import Control.Exception(Exception)
     import Data.Typeable(Typeable)
-    import Control.Applicative(liftA3)
+    import Control.Monad(forM_, forever)
 
     data QuitException = QuitException
       deriving (Show, Typeable)
     instance Exception QuitException where
 
-    -- Pure part
-    inRange :: (Ord a) => a -> a -> a -> Bool
-    inRange start stop x = (start <= x && x < stop)
+    brickColor :: Color
+    brickColor = Color 255 0 0
+    brickWidth :: Int
+    brickWidth = 42
+    brickHeight :: Int
+    brickHeight = 23
 
-    positions :: Vector2 Int -> [Vector2 Int]
-    positions size = positions'
+    playerColor :: Color
+    playerColor = Color 0 0 255
+
+    playerHeight :: Int
+    playerHeight = 15
+
+    data Player = Player { playerPos :: Int
+                         , playerWidth :: Int }
+    playerRectAt :: Int -> Player -> Rect
+    playerRectAt height (Player x width) =
+        Rect (x - hwidth) (height - playerHeight)
+             width height
         where
-          positions' = initPos : zipWith (+) positions' speeds
-          speeds = initSpeed : zipWith (liftA3 nextSpeed size) (tail positions') speeds
-          initPos = Vector2 0 0
-          initSpeed = Vector2 1 2
+          hwidth = width `div` 2
 
-    nextSpeed :: Int -> Int -> Int -> Int
-    nextSpeed size position = if inRange 0 size position then id else negate
+    spaceWidth :: Int
+    spaceWidth = 4
+    spaceHeight :: Int
+    spaceHeight = 3
+
+    -- Pure part
+    brickPositionsIn :: Vector2 Int -> [Vector2 Int]
+    brickPositionsIn (Vector2 width height) =
+        [Vector2 x y
+         | x <- [0, brickWidth+spaceWidth..width-brickWidth]
+        , y <- [0, brickHeight+spaceHeight..height-brickHeight]]
+
+
+    brickArea :: Vector2 Int -> Vector2 Int
+    brickArea (Vector2 width height) = Vector2 width (height * 2 `div` 5)
+
+    initBrickPositions :: Vector2 Int -> [Vector2 Int]
+    initBrickPositions = brickPositionsIn . brickArea
+
+    brickRect :: Vector2 Int -> Rect
+    brickRect (Vector2 x y) = Rect x y brickWidth brickHeight
 
     -- Monadic part
-
     handleEvents :: [SDL.Event] -> IO ()
     handleEvents events = do
-      Monad.forM_ events $ \event -> case event of 
+      forM_ events $ \event -> case event of 
                                        SDL.Quit -> Exception.throwIO QuitException
                                        _ -> return ()
 
-    mainLoop :: String -> SDL.Surface -> IO ()
-    mainLoop text display = do
-      myFont <- Font.defaultFont 40
+    draw :: SDL.Surface -> Rect -> [Vector2 Int] -> IO ()
+    draw display playerRect brickPositions =
+        forM_ brickPositions $ \pos -> do
+            HaskGame.fillRect display (brickRect pos) brickColor
+            HaskGame.fillRect display playerRect playerColor
+
+    mainLoop :: SDL.Surface -> IO ()
+    mainLoop display = do
       black <- SDL.mapRGB (SDL.surfaceGetPixelFormat display) 0 0 0
 
-      textSurface <- Font.renderText myFont text (Color 255 0 0)
-      let displaySize = HaskGame.surfaceSize display
-          textSize = HaskGame.surfaceSize textSurface
-          size = displaySize - textSize
+      let displaySize@(Vector2 _ displayHeight) = HaskGame.surfaceSize display
+          brickPositions = initBrickPositions displaySize
 
-      Monad.forM_ (positions size) $ \pos -> do
+      forever $ do
         SDL.fillRect display Nothing black
-        HaskGame.blit display pos textSurface
+
+        (mouseX, _, _) <- SDL.getMouseState
+
+        let player = Player mouseX 50
+        draw display (playerRectAt displayHeight player) brickPositions
+
         SDL.flip display
         events <- HaskGame.getEvents
         handleEvents events
@@ -71,12 +105,8 @@ module Main where
 
     main :: IO ()
     main = do
-      args <- System.getArgs
-      let text = case args of
-                   [] -> "Not enough arguments"
-                   (_:_:_) -> "Too many arguments"
-                   (x:[]) -> x
       HaskGame.withInit $ do
         display <- HaskGame.setVideoMode xres yres colordepth
-        mainLoop text display
-        return ()
+        mainLoop display
+          `Exception.catch`
+          \QuitException -> return ()
