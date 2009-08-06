@@ -5,6 +5,7 @@ module Main where
 
 import qualified Graphics.UI.HaskGame as HaskGame
 import qualified Graphics.UI.HaskGame.Vector2 as Vector2
+import qualified Graphics.UI.HaskGame.Rect as Rect
 import Graphics.UI.HaskGame.Vector2(Vector2(..))
 import Graphics.UI.HaskGame.Color(Color(..))
 import qualified Graphics.UI.SDL as SDL
@@ -157,17 +158,16 @@ nextGameState gs =
              else -speedY)
 
 collideBall :: Vector2 Int -> Rect -> Maybe Direction
-collideBall (Vector2 ballx bally) (Rect x y w h) =
-    let left  = ballx + ballRadius < x
-        right = ballx - ballRadius > x+w
-        up    = bally + ballRadius < y
-        down  = bally - ballRadius > y+h
-    in if left || right || up || down
-    then Nothing
-    else Just $
-         if ballx < x || ballx > x+w
-         then X
-         else Y
+collideBall (Vector2 ballX ballY) r =
+    let intersect = r `Rect.intersect` (Rect (ballX - ballRadius) (ballY - ballRadius)
+                                         (ballRadius*2) (ballRadius*2))
+        Vector2 iwidth iheight = Rect.getSize intersect
+    in if iwidth <= 0 || iheight <= 0
+       then Nothing
+       else Just $
+            if iwidth < iheight
+            then X
+            else Y
 
 ballPosition :: GameState -> Vector2 Double
 ballPosition GameState{gsBallPosSpeed=ballPosSpeed
