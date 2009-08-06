@@ -1,4 +1,3 @@
-{-# OPTIONS -Wall -O2 #-}
 {-# LANGUAGE DeriveDataTypeable #-}
 
 module Main where
@@ -10,7 +9,7 @@ import Graphics.UI.HaskGame.Vector2(Vector2(..))
 import Graphics.UI.HaskGame.Color(Color(..))
 import qualified Graphics.UI.SDL as SDL
 import Graphics.UI.SDL(Rect(..))
-import qualified IO
+import qualified System.IO as IO
 import qualified Control.Exception as Exception
 import Control.Exception(Exception)
 import Data.Typeable(Typeable)
