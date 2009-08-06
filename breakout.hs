@@ -79,7 +79,7 @@ capPlayerRange curPlayerWidth = capRange halfWidth (displayWidth - halfWidth)
 data GameState = GameState {
           gsPlayerPos :: Int
         , gsPlayerWidth :: Int
-        , gsBallPosSpeed :: Maybe (Vector2 Double, Vector2 Double)
+        , gsBall :: Maybe (Vector2 Double, Vector2 Double)
         , gsBrickPositions :: [Vector2 Int]
         }
 
@@ -89,8 +89,8 @@ atGsPlayerPos :: Inside GameState Int
 atGsPlayerPos f gs = gs{gsPlayerPos = f (gsPlayerPos gs)}
 atGsPlayerWidth :: Inside GameState Int
 atGsPlayerWidth f gs = gs{gsPlayerWidth = f (gsPlayerWidth gs)}
-atGsBallPosSpeed :: Inside GameState (Maybe (Vector2 Double, Vector2 Double))
-atGsBallPosSpeed f gs = gs{gsBallPosSpeed = f (gsBallPosSpeed gs)}
+atGsBall :: Inside GameState (Maybe (Vector2 Double, Vector2 Double))
+atGsBall f gs = gs{gsBall = f (gsBall gs)}
 atGsBrickPositions :: Inside GameState [Vector2 Int]
 atGsBrickPositions f gs = gs{gsBrickPositions = f (gsBrickPositions gs)}
 
@@ -119,17 +119,15 @@ draw display gs = do
     let ballRect = Rect (truncate ballx - ballRadius) (truncate bally - ballRadius) (ballRadius*2) (ballRadius*2)
     HaskGame.fillRect display ballRect playerColor
 
-inRange :: Ord a => a -> a -> a -> Bool
-inRange bottom top x = x >= bottom && x < top
-
 nextGameState :: GameState -> GameState
 nextGameState gs =
-    maybe gs newState $ gsBallPosSpeed gs
+    maybe gs newState $ gsBall gs
   where
     Rect px _ pw _ = playerRect gs
     brickPositions = gsBrickPositions gs
+    fi = fromIntegral
     newState (ballPos, ballSpeed@(Vector2 speedX speedY)) =
-        gs{gsBallPosSpeed=if ballY >= fi displayHeight
+        gs{gsBall=if ballY - fi ballRadius >= fi displayHeight
                           then Nothing
                           else Just (ballPos', ballSpeed')
           ,gsBrickPositions=filter (isNothing . collision) $ brickPositions }
@@ -138,9 +136,8 @@ nextGameState gs =
         collision = collideBall (truncate <$> ballPos') . brickRect
         firstCollision = listToMaybe $ mapMaybe collision brickPositions
 
-        fi = fromIntegral
-        hitPlayer = ballY >= fi (displayHeight - playerHeight) &&
-                    ballX >= fi px && ballX <= fi (px+pw)
+        hitPlayer = ballY + fi ballRadius >= fi (displayHeight - playerHeight) &&
+                    ballX+fi ballRadius >= fi px && ballX-fi ballRadius <= fi (px+pw)
         factor = if hitPlayer
                  then (+) $ 8 * (ballX - fi px - fi pw/2) / fi pw
                  else id
@@ -150,10 +147,10 @@ nextGameState gs =
         ballSpeed' =
             Vector2
             (factor $
-             if inRange 0 (fi displayWidth) ballX && not collideX
+             if ballX - fi ballRadius > 0 && ballX + fi ballRadius < fi displayWidth && not collideX
              then speedX
              else -speedX)
-            (if ballY >= 0 && not hitPlayer && not collideY
+            (if ballY - fi ballRadius > 0 && not hitPlayer && not collideY
              then speedY
              else -speedY)
 
@@ -170,7 +167,7 @@ collideBall (Vector2 ballX ballY) r =
             else Y
 
 ballPosition :: GameState -> Vector2 Double
-ballPosition GameState{gsBallPosSpeed=ballPosSpeed
+ballPosition GameState{gsBall=ballPosSpeed
                       ,gsPlayerPos=playerPos} =
     maybe (fromIntegral <$> Vector2 playerPos (displayHeight - playerHeight - ballRadius))
           fst $
@@ -194,14 +191,12 @@ mainLoop display = do
 
     gameState <- get
     liftIO $ sdlIteration display gameState
-    let curPlayerWidth = gsPlayerWidth gameState
-        curPlayerPos = capPlayerRange curPlayerWidth mouseX
-    modify . atGsPlayerPos . const $ curPlayerPos
-    ballPos <- ballPosition `fmap` get
-    when leftPressed $
-         modify . atGsBallPosSpeed . const $ Just (ballPos, initialBallSpeed)
-
+    modify . atGsPlayerPos . const . capPlayerRange (gsPlayerWidth gameState) $ mouseX
     modify nextGameState
+    when leftPressed $ do
+      ballPos <- ballPosition `fmap` get
+      modify . atGsBall . const $ Just (ballPos, initialBallSpeed)
+
 
 main :: IO ()
 main = do
