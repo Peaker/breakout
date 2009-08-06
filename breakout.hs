@@ -83,6 +83,10 @@ data GameState = GameState {
         , gsBrickPositions :: [Vector2 Int]
         }
 
+initGameState :: GameState
+initGameState = GameState 0 initialPlayerWidth Nothing initBrickPositions
+
+-- This boilerplate should really be automatic from records :-(
 type Endo a = (a -> a)
 type Inside whole part = Endo part -> Endo whole
 atGsPlayerPos :: Inside GameState Int
@@ -184,8 +188,8 @@ sdlIteration display gs =
     SDL.delay (10 - (ticks `mod` 10))
 
 mainLoop :: SDL.Surface -> IO ()
-mainLoop display = do
-  (`evalStateT` (GameState 0 initialPlayerWidth Nothing initBrickPositions)) . forever $ do
+mainLoop display =
+  (`evalStateT` initGameState) . forever $ do
     (mouseX, _, buttons) <- liftIO $ SDL.getMouseState
     let leftPressed = SDL.ButtonLeft `elem` buttons
 
@@ -196,7 +200,6 @@ mainLoop display = do
     when leftPressed $ do
       ballPos <- ballPosition `fmap` get
       modify . atGsBall . const $ Just (ballPos, initialBallSpeed)
-
 
 main :: IO ()
 main = do
