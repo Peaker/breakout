@@ -8,6 +8,7 @@ import qualified Graphics.UI.HaskGame.Rect as Rect
 import Graphics.UI.HaskGame.Vector2(Vector2(..))
 import Graphics.UI.HaskGame.Color(Color(..))
 import qualified Graphics.UI.SDL as SDL
+import qualified Graphics.UI.SDL.Video as SDL.Video
 import Graphics.UI.SDL(Rect(..))
 import qualified System.IO as IO
 import qualified Control.Exception as Exception
@@ -24,7 +25,7 @@ data Direction = X | Y
 
 data QuitException = QuitException
   deriving (Show, Typeable)
-instance Exception QuitException where
+instance Exception QuitException
   -- Nothing
 
 displayWidth :: Int
@@ -61,7 +62,14 @@ playerHeight = 15
 initialPlayerWidth :: Int
 initialPlayerWidth = 80
 initialBallSpeed :: Vector2 Double
-initialBallSpeed = Vector2 1 (-2)
+initialBallSpeed = Vector2 3 (-2)
+
+data GameState = GameState {
+          gsPlayerPos :: Int
+        , gsPlayerWidth :: Int
+        , gsBall :: Maybe (Vector2 Double, Vector2 Double)
+        , gsBrickPositions :: [Vector2 Int]
+        }
 
 playerRect :: GameState -> Rect
 playerRect GameState{gsPlayerPos=playerPos
@@ -74,13 +82,6 @@ playerRect GameState{gsPlayerPos=playerPos
 capPlayerRange :: Int -> Int -> Int
 capPlayerRange curPlayerWidth = capRange halfWidth (displayWidth - halfWidth)
     where halfWidth = curPlayerWidth `div` 2
-
-data GameState = GameState {
-          gsPlayerPos :: Int
-        , gsPlayerWidth :: Int
-        , gsBall :: Maybe (Vector2 Double, Vector2 Double)
-        , gsBrickPositions :: [Vector2 Int]
-        }
 
 initGameState :: GameState
 initGameState = GameState 0 initialPlayerWidth Nothing initBrickPositions
@@ -109,9 +110,10 @@ brickRect (Vector2 x y) = Rect x y brickWidth brickHeight
 
 handleEvents :: [SDL.Event] -> IO ()
 handleEvents events = do
-  forM_ events $ \event -> case event of 
-                                   SDL.Quit -> Exception.throwIO QuitException
-                                   _ -> return ()
+  forM_ events $
+    \event -> case event of
+       SDL.Quit -> Exception.throwIO QuitException
+       _ -> return ()
 
 draw :: SDL.Surface -> GameState -> IO ()
 draw display gs = do
@@ -195,14 +197,16 @@ mainLoop display =
     gameState <- get
     liftIO $ sdlIteration display gameState
     modify . atGsPlayerPos . const . capPlayerRange (gsPlayerWidth gameState) $ mouseX
-    modify nextGameState
-    when leftPressed $ do
+    ball <- gsBall `fmap` get
+    when (leftPressed && isNothing ball) $ do
       ballPos <- ballPosition `fmap` get
       modify . atGsBall . const $ Just (ballPos, initialBallSpeed)
+    modify nextGameState
 
 main :: IO ()
 main = do
   HaskGame.withInit $ do
+    SDL.Video.showCursor False
     display <- HaskGame.setVideoMode displaySize colordepth
     mainLoop display
       `Exception.catch`
