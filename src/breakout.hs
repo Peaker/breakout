@@ -26,7 +26,6 @@ data Direction = X | Y
 data QuitException = QuitException
   deriving (Show, Typeable)
 instance Exception QuitException
-  -- Nothing
 
 displayWidth :: Int
 displayHeight :: Int
