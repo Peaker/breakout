@@ -1,5 +1,5 @@
 Name:                breakout
-Version:             0.0.1
+Version:             0.0.2
 Cabal-Version:       >= 1.2
 Synopsis:            A simple Breakout game implementation.
 Category:            game
